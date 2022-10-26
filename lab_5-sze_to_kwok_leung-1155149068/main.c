@@ -128,13 +128,13 @@ void UARTIntHandler(void)
         if (c == 10 || c == 13)
         {
             UARTCharPut(UART0_BASE, '\n');
-            UARTCharPut(UART0_BASE, '\c');
+            UARTCharPut(UART0_BASE, '\r');
             while (!Q_Empty(&q))
             {
                 UARTCharPut(UART0_BASE, Q_Dequeue(&q));
             }
             UARTCharPut(UART0_BASE, '\n');
-            UARTCharPut(UART0_BASE, '\c');
+            UARTCharPut(UART0_BASE, '\r');
         }
         else
         {
