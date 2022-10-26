@@ -23,7 +23,7 @@ struct
 void Q_Init(Queue *q)
 {
     int i;
-    for(i = 0; i < MAX_QUEUE_SIZE; i++)
+    for (i = 0; i < MAX_QUEUE_SIZE; i++)
         q->data[i] = 0;
     q->head = 0;
     q->tail = 0;
@@ -103,10 +103,10 @@ int main(void)
     }
 }
 
-void UARTStringPut(char* str)
+void UARTStringPut(char *str)
 {
     int i;
-    for(i = 0; str[i] != '\0'; i++)
+    for (i = 0; str[i] != '\0'; i++)
     {
         UARTCharPut(UART0_BASE, str[i]);
     }
@@ -128,11 +128,13 @@ void UARTIntHandler(void)
         if (c == 10 || c == 13)
         {
             UARTCharPut(UART0_BASE, '\n');
+            UARTCharPut(UART0_BASE, '\c');
             while (!Q_Empty(&q))
             {
                 UARTCharPut(UART0_BASE, Q_Dequeue(&q));
             }
             UARTCharPut(UART0_BASE, '\n');
+            UARTCharPut(UART0_BASE, '\c');
         }
         else
         {
