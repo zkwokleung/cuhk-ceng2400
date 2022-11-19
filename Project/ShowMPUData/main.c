@@ -1,32 +1,3 @@
-// Read data from MPU6050, and show them via UART
-// author: Xiangyu Wen
-// Date: 2022.11.01
-
-// hardware connection:
-// MPU VCC -> pad 3.3v
-// MPU SCL -> pad PB2
-// MPU SDA -> pad PB3
-
-// Software functions:
-// In this project folder, you may only focus on the main.c and tm4c123gh6pm_startup_ccs.c,
-// the other files support the function of MPU6050 reading.
-// I2C0 used to communicate with MPU
-
-// send package format:
-// R aaa bbb ccc x
-
-
-// NOTE:
-// the raw data of these three axes are all from -180 to 180.
-// No matter which two axes you decide to use to control the servo,
-// you need to ensure that the the scale of servo Pitch angle should be constrained to 20 - 110,
-// and the scale of servo Yaw angle should be constrained to 20 - 160.
-// Otherwise, the servo may be broken!
-
-// What you need to do:
-// 1. design a parser to process the raw MPU data to a proper format according to the NOTE.
-// 2. show the processed data via UART
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -69,6 +40,32 @@ tI2CMInstance g_sI2CMSimpleInst;
 //Device frequency
 int clockFreq;
 
+void InitializeUART()
+{
+    // Enable UART0 and GPIOA to send signals via UART
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+
+    // Configure and enable UART
+    GPIOPinConfigure(GPIO_PA0_U0RX);
+    GPIOPinConfigure(GPIO_PA1_U0TX);
+    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
+                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+
+    IntMasterEnable();
+    IntEnable(INT_UART0);
+    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
+}
+
+void UARTStringPut(char *str)
+{
+    int i;
+    for (i = 0; str[i] != '\0'; i++)
+    {
+        UARTCharPut(UART0_BASE, str[i]);
+    }
+}
 
 void InitI2C0(void)
 {
@@ -193,8 +190,27 @@ void NormalizeXYZ(int *X, int *Y, int *Z)
 {
     // For convenience, we use:
     //     negative Y as pitching up, positive Y as pitching down,
-    //     positive Z as yawing left, negative Z as yawing right
+    //     positive Z as yawing left, negative Z as yawing right,
+    //     and we don't care about the X.
 
+    // Clamp Y
+    if(*Y < -180)
+        *Y = -180;
+    else if(*Y > 180)
+        *Y = 180;
+
+    // Clamp Z
+    if(*Z < -180)
+        *Z = -180;
+    else if(*Z > 180)
+        *Z = 180;
+
+    // Scale Y (Pitch) to 20 ~ 180
+    *Y = (((*Y + 180) / 360) * (180 - 20)) + 20;
+
+    // Scale Z (Yaw) to 20 ~ 160
+    *Z = (((*Z + 180) / 360) * (160 - 20)) + 20;
+    return;
 }
 
 int X = 0, Y = 0, Z = 0;
@@ -204,6 +220,9 @@ int main(){
     // initialize I2C, you may do not care this part
     InitI2C0();
 
+    // Initialize UART
+    InitializeUART();
+
     MPU6050_Config(0x68, 1, 1);
     MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
 
@@ -212,6 +231,7 @@ int main(){
         // get raw data from MPU6050
         MPU6050Example(&X, &Y, &Z);
         // scale to a proper Master rotation
+//        NormalizeXYZ(&X, &Y, &Z);
 
 
         // NOTE:
@@ -226,11 +246,8 @@ int main(){
 
         // show data here (recommend to use interrupt)
         // example: R aaa bbb ccc x
-
+        delayMS(5);
     }
 
     return(0);
 }
-
-
-
