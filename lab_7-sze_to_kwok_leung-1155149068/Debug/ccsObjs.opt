@@ -1,5 +1,0 @@
-"./main.obj"
-"./tm4c123gh6pm_startup_ccs.obj"
-"../tm4c123gh6pm.cmd"
--llibc.a
--l"D:/ti/ti-cgt-arm_18.12.1.LTS/lib/driverlib.lib"
