@@ -40,16 +40,114 @@ tI2CMInstance g_sI2CMSimpleInst;
 //Device frequency
 int clockFreq;
 
-void Initialize(void);
-void InitializeUART(void);
-void InitializeMPU(void);
-void InitI2C0(void);
+char* Int_toString(int value)
+{
+    char temp[20];
+    char result[20];
+    int tempCount = 0;
+    int resultCount;
 
-void UARTStringPut(uint32_t ui32Base, char *str);
-void UARTIntPut(uint32_t ui32Base, int value);
+    // Covert to char from LSB
+    while (value > 0)
+    {
+        temp[tempCount++] = (value % 10) + '0';
+        value /= 10;
+    }
 
-char* Int_toString(int value);
-void delayMS(int ms);
+    // Put back the result from MSB
+    while (--tempCount >= 0)
+    {
+        result[resultCount++] = temp[tempCount];
+    }
+    result[resultCount] = '\0';
+
+    return &result[0];
+}
+
+void InitializeMPU(void)
+{
+    MPU6050_Config(0x68, 1, 1);
+    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
+}
+
+void InitializeUART()
+{
+    // Enable UART0 and GPIOA to send signals via UART
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+
+    // Configure and enable UART
+    GPIOPinConfigure(GPIO_PA0_U0RX);
+    GPIOPinConfigure(GPIO_PA1_U0TX);
+    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
+                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+
+    IntMasterEnable();
+    IntEnable(INT_UART0);
+    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
+}
+
+void UARTStringPut(uint32_t ui32Base, char *str)
+{
+    int i;
+    for (i = 0; str[i] != '\0'; i++)
+    {
+        UARTCharPut(ui32Base, str[i]);
+    }
+}
+void UARTIntPut(uint32_t ui32Base, int value)
+{
+    char temp[20];
+    int tempCount = 0;
+    while (value > 0)
+    {
+        temp[tempCount++] = (value % 10) + '0';
+        value /= 10;
+    }
+    while (--tempCount >= 0)
+    {
+        UARTCharPut(ui32Base, temp[tempCount]);
+    }
+}
+
+void InitI2C0(void)
+{
+    //enable I2C module 0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+
+    //reset module
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
+
+    //enable GPIO peripheral that contains I2C 0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+
+    // Configure the pin muxing for I2C0 functions on port B2 and B3.
+    GPIOPinConfigure(GPIO_PB2_I2C0SCL);
+    GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+
+    // Select the I2C function for these pins.
+    GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
+    GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
+
+    // Enable and initialize the I2C0 master module.  Use the system clock for
+    // the I2C0 module.
+    // I2C data transfer rate set to 400kbps.
+    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), true);
+
+    //clear I2C FIFOs
+    HWREG(I2C0_BASE + I2C_O_FIFOCTL) = 80008000;
+
+    // Initialize the I2C master driver.
+    I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
+
+}
+
+void delayMS(int ms) {
+    //ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
+    SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;  // less accurate
+}
+
 
 // The function that is provided by this example as a callback when MPU6050
 // transactions have completed.
@@ -133,6 +231,20 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
     delayMS(5);
 }
 
+void Initialize(void)
+{
+    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    // Initialize I2C
+    InitI2C0();
+
+    // Initialize UART
+    InitializeUART();
+
+    // Initialize MPU
+    InitializeMPU();
+}
+
 int X = 0, Y = 0, Z = 0;
 int main(){
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
@@ -152,129 +264,4 @@ int main(){
 
         delayMS(5);
     }
-
-    return 0;
 }
-
-char* Int_toString(int value)
-{
-    char temp[20];
-    char result[20];
-    int tempCount = 0;
-    int resultCount;
-
-    // Covert to char from LSB
-    while (value > 0)
-    {
-        temp[tempCount++] = (value % 10) + '0';
-        value /= 10;
-    }
-
-    // Put back the result from MSB
-    while (--tempCount >= 0)
-    {
-        result[resultCount++] = temp[tempCount];
-    }
-    result[resultCount] = '\0';
-
-    return &result[0];
-}
-
-void InitializeMPU(void)
-{
-    MPU6050_Config(0x68, 1, 1);
-    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
-}
-
-void Initialize(void)
-{
-    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
-
-    // Initialize I2C
-    InitI2C0();
-
-    // Initialize UART
-    InitializeUART();
-
-    // Initialize MPU
-    InitializeMPU();
-}
-
-void InitializeUART()
-{
-    // Enable UART0 and GPIOA to send signals via UART
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
-
-    // Configure and enable UART
-    GPIOPinConfigure(GPIO_PA0_U0RX);
-    GPIOPinConfigure(GPIO_PA1_U0TX);
-    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
-                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-
-    IntMasterEnable();
-    IntEnable(INT_UART0);
-    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
-}
-
-void UARTStringPut(uint32_t ui32Base, char *str)
-{
-    int i;
-    for (i = 0; str[i] != '\0'; i++)
-    {
-        UARTCharPut(ui32Base, str[i]);
-    }
-}
-void UARTIntPut(uint32_t ui32Base, int value)
-{
-    char temp[20];
-    int tempCount = 0;
-    while (value > 0)
-    {
-        temp[tempCount++] = (value % 10) + '0';
-        value /= 10;
-    }
-    while (--tempCount >= 0)
-    {
-        UARTCharPut(ui32Base, temp[tempCount]);
-    }
-}
-
-void InitI2C0(void)
-{
-    //enable I2C module 0
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
-
-    //reset module
-    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
-
-    //enable GPIO peripheral that contains I2C 0
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
-
-    // Configure the pin muxing for I2C0 functions on port B2 and B3.
-    GPIOPinConfigure(GPIO_PB2_I2C0SCL);
-    GPIOPinConfigure(GPIO_PB3_I2C0SDA);
-
-    // Select the I2C function for these pins.
-    GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
-    GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
-
-    // Enable and initialize the I2C0 master module.  Use the system clock for
-    // the I2C0 module.
-    // I2C data transfer rate set to 400kbps.
-    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), true);
-
-    //clear I2C FIFOs
-    HWREG(I2C0_BASE + I2C_O_FIFOCTL) = 80008000;
-
-    // Initialize the I2C master driver.
-    I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
-
-}
-
-void delayMS(int ms) {
-    //ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
-    SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;  // less accurate
-}
-
