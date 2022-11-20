@@ -45,7 +45,20 @@ char* Int_toString(int value)
     char temp[20];
     char result[20];
     int tempCount = 0;
-    int resultCount;
+    int resultCount = 0;
+
+    if(value == 0)
+    {
+        result[0] = '0';
+        result [1] = '\0';
+        return &result[0];
+    }
+
+    if(value < 0)
+    {
+        result[resultCount++] = '-';
+        value *= -1;
+    }
 
     // Covert to char from LSB
     while (value > 0)
@@ -98,17 +111,7 @@ void UARTStringPut(uint32_t ui32Base, char *str)
 }
 void UARTIntPut(uint32_t ui32Base, int value)
 {
-    char temp[20];
-    int tempCount = 0;
-    while (value > 0)
-    {
-        temp[tempCount++] = (value % 10) + '0';
-        value /= 10;
-    }
-    while (--tempCount >= 0)
-    {
-        UARTCharPut(ui32Base, temp[tempCount]);
-    }
+    UARTStringPut(ui32Base, Int_toString(value));
 }
 
 void InitI2C0(void)
@@ -211,17 +214,17 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
         integralX += gyroX * dt_2;
         integralY += gyroY * dt_2;
         integralZ += gyroZ * dt_2;
-        if (integralX > 360)
+        if (integralX > 180)
             integralX -= 360;
-        if (integralX < -360)
+        if (integralX < -180)
             integralX += 360;
-        if (integralY > 360)
+        if (integralY > 180)
             integralY -= 360;
-        if (integralY < -360)
+        if (integralY < -180)
             integralY += 360;
-        if (integralZ > 360)
+        if (integralZ > 180)
             integralZ -= 360;
-        if (integralZ < -360)
+        if (integralZ < -180)
             integralZ += 360;
     }
 
@@ -247,13 +250,7 @@ void Initialize(void)
 
 int X = 0, Y = 0, Z = 0;
 int main(){
-    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
-
-    // initialize I2C, you may do not care this part
-    InitI2C0();
-
-    MPU6050_Config(0x68, 1, 1);
-    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
+    Initialize();
 
     while(1){
         // For convenience, we use:
@@ -261,6 +258,16 @@ int main(){
         //     positive Z as yawing left, negative Z as yawing right,
         //     and we don't care about the X.
         GetMPUValue(&X, &Y, &Z);
+
+        // Display the Value in UART
+        UARTCharPut(UART0_BASE, 'R');
+        UARTCharPut(UART0_BASE, ' ');
+        UARTIntPut(UART0_BASE, X);
+        UARTCharPut(UART0_BASE, ' ');
+        UARTIntPut(UART0_BASE, Y);
+        UARTCharPut(UART0_BASE, ' ');
+        UARTIntPut(UART0_BASE, Z);
+        UARTStringPut(UART0_BASE, " x\n\r");
 
         delayMS(5);
     }
