@@ -31,6 +31,14 @@
 
 #include "include.h"
 
+#define MIN_PITCH_ANGLE 20
+#define MAX_PITCH_ANGLE 110
+#define MIN_PITCH_ANGLE 20
+#define MAX_PITCH_ANGLE 160
+
+// Storing the data from the MPU and the data to be sent via UART
+int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
+
 // A boolean that is set when a MPU6050 command has completed.
 volatile bool g_bMPU6050Done;
 
@@ -39,6 +47,16 @@ tI2CMInstance g_sI2CMSimpleInst;
 
 //Device frequency
 int clockFreq;
+
+// read data from MPU6050.
+static const float dt = 1 / 200.0;
+static const int ZERO_OFFSET_COUN = (int)(200);
+
+static const float dt_2 = 1 / 150.0;
+static const int ZERO_OFFSET_COUN_2 = (int)(150);
+
+static int g_GetZeroOffset = 0;
+static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
 
 char* Int_toString(int value)
 {
@@ -164,24 +182,6 @@ void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status){
 }
 
 
-// The interrupt handler for the I2C module.
-void I2CMSimpleIntHandler(void){
-    // Call the I2C master driver interrupt handler.
-    I2CMIntHandler(&g_sI2CMSimpleInst);
-}
-
-
-// read data from MPU6050.
-static const float dt = 1 / 200.0;
-static const int ZERO_OFFSET_COUN = (int)(200);
-
-static const float dt_2 = 1 / 150.0;
-static const int ZERO_OFFSET_COUN_2 = (int)(150);
-
-static int g_GetZeroOffset = 0;
-static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
-
-
 void GetMPUValue(int *pitch, int *roll, int *yaw)
 {
     double fAccel[3], fGyro[3];
@@ -231,6 +231,7 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
     *pitch = (int)integralX;
     *roll = (int)integralY;
     *yaw = (int)integralZ;
+
     delayMS(5);
 }
 
@@ -248,27 +249,41 @@ void Initialize(void)
     InitializeMPU();
 }
 
-int X = 0, Y = 0, Z = 0;
+void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
+{
+    static int lastX = 0, lastY = 0, lastZ = 0;
+    // For convenience, we use:
+    //     negative Y as pitching up, positive Y as pitching down,
+    //     positive Z as yawing left, negative Z as yawing right,
+    //     and we don't care about the X.
+
+
+}
+
 int main(){
     Initialize();
 
     while(1){
-        // For convenience, we use:
-        //     negative Y as pitching up, positive Y as pitching down,
-        //     positive Z as yawing left, negative Z as yawing right,
-        //     and we don't care about the X.
-        GetMPUValue(&X, &Y, &Z);
-
-        // Display the Value in UART
-        UARTCharPut(UART0_BASE, 'R');
-        UARTCharPut(UART0_BASE, ' ');
-        UARTIntPut(UART0_BASE, X);
-        UARTCharPut(UART0_BASE, ' ');
-        UARTIntPut(UART0_BASE, Y);
-        UARTCharPut(UART0_BASE, ' ');
-        UARTIntPut(UART0_BASE, Z);
-        UARTStringPut(UART0_BASE, " x\n\r");
-
-        delayMS(5);
     }
+}
+
+// The interrupt handler for the I2C module.
+void I2CMSimpleIntHandler(void){
+    // Call the I2C master driver interrupt handler.
+    I2CMIntHandler(&g_sI2CMSimpleInst);
+
+    // Get the value from the MPU
+    GetMPUValue(&X, &Y, &Z);
+    // Normalize the value for the servo
+    GetNormalizedPitchYaw(X,Y, Z, &pitch, &yaw);
+
+    // Display the Value in UART
+    UARTCharPut(UART0_BASE, 'R');
+    UARTCharPut(UART0_BASE, ' ');
+    UARTIntPut(UART0_BASE, X);
+    UARTCharPut(UART0_BASE, ' ');
+    UARTIntPut(UART0_BASE, Y);
+    UARTCharPut(UART0_BASE, ' ');
+    UARTIntPut(UART0_BASE, Z);
+    UARTStringPut(UART0_BASE, " x\n\r");
 }
