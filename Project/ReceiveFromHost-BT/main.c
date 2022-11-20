@@ -96,7 +96,6 @@ int main(void) {
 
     while (1)
     {
-        if (UARTCharsAvail(UART0_BASE)) UARTCharPut(UART5_BASE, UARTCharGet(UART0_BASE));
     }
 
 }

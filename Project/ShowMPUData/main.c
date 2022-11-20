@@ -158,6 +158,7 @@ void UARTStringPut(uint32_t ui32Base, char *str)
         UARTCharPut(ui32Base, str[i]);
     }
 }
+
 void UARTIntPut(uint32_t ui32Base, int value)
 {
     UARTStringPut(ui32Base, Int_toString(value));

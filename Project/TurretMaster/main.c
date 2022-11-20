@@ -48,7 +48,6 @@ void Initialize(void)
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
     InitializeUART();
-    InitializePWM();
 }
 
 int main(void) {
