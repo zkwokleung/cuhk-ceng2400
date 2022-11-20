@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
 #include "driverlib/gpio.h"
@@ -10,31 +11,108 @@
 #include "inc/hw_ints.h"
 #include "driverlib/interrupt.h"
 
-void InitializeUART()
+/*
+ * Generic Utilities
+ */
+void delayMS(int ms) {
+    SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;  // less accurate
+}
+
+char* Int_toString(int value)
 {
-    // Enable UART0 and GPIOA to send signals via UART
+    char temp[11];
+    char *result = (char*) malloc(sizeof(char) * 11);
+    int tempCount = 0;
+    int resultCount = 0;
+
+    if(value == 0)
+    {
+        result[0] = '0';
+        result [1] = '\0';
+        return result;
+    }
+
+    if(value < 0)
+    {
+        result[resultCount++] = '-';
+        value *= -1;
+    }
+
+    // Covert to char from LSB
+    while (value > 0)
+    {
+        temp[tempCount++] = (value % 10) + '0';
+        value /= 10;
+    }
+
+    // Put back the result from MSB
+    while (--tempCount >= 0)
+    {
+        result[resultCount++] = temp[tempCount];
+    }
+    result[resultCount] = '\0';
+
+    return result;
+}
+
+/*
+ * UART Functions to handle the communication via UART.
+ * While UART0 is transferring data to PC,
+ * UART5 is transferring data to HC5, the BlueTooth device
+ */
+void UARTStringPut(uint32_t ui32Base, char *str)
+{
+    int i;
+    for (i = 0; str[i] != '\0'; i++)
+    {
+        UARTCharPut(ui32Base, str[i]);
+    }
+}
+
+void UARTIntPut(uint32_t ui32Base, int value)
+{
+    UARTStringPut(ui32Base, Int_toString(value));
+}
+
+void InitializeUART(void)
+{
+    // enable UART0 and GPIOA.
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
 
-    // Configure PA ports and enable UART0
+    // Configure PA0 for RX
+    // Configure PA1 for TX
     GPIOPinConfigure(GPIO_PA0_U0RX);
     GPIOPinConfigure(GPIO_PA1_U0TX);
+    // Set PORTA pin0 and pin1 as UART type
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
-                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
 
-    // Enable UART5 and GPIOE to send signals via BlueTooth
+    // set UART base addr., clock get and baud rate.
+    // used to communicate with computer
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 38400,
+        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+
+
+    // enable UART5 and GPIOE
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART5);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
 
-    // Configure PE ports and enable UART5
+    // Configure board PE4 for RX
+    // configure board PE5 for TX
     GPIOPinConfigure(GPIO_PE4_U5RX);
     GPIOPinConfigure(GPIO_PE5_U5TX);
+    // set PORTE pin4 and pin5 as UART type
     GPIOPinTypeUART(GPIO_PORTE_BASE, GPIO_PIN_4 | GPIO_PIN_5);
+
+    // set UART base addr., system clock, baud rate
+    // used to communicate with HC-05
     UARTConfigSetExpClk(UART5_BASE, SysCtlClockGet(), 38400,
         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
 
-    // Enable Interrupt
+    GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
+    GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_1|GPIO_PIN_3, 2) ;
+
+    // set interrupt for receiving and showing values
     IntMasterEnable();
     IntEnable(INT_UART0);
     UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
@@ -42,28 +120,33 @@ void InitializeUART()
     UARTIntEnable(UART5_BASE, UART_INT_RX | UART_INT_RT);
 }
 
+void InitializeMaster(void)
+{
+    UARTStringPut(UART5_BASE, "AT+ROLE=1\r\n");
+    delayMS(100);
+    UARTStringPut(UART5_BASE, "AT+CMODE=0\r\n");
+    delayMS(100);
+    UARTStringPut(UART5_BASE, "AT+BIND=22,4,3036F4\r\n");
+    delayMS(100);
+}
+
 void Initialize(void)
 {
     // set clock
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
+    // Initialize UART
     InitializeUART();
+
+    // Wait for two seconds before initializing slave configuration
+    delayMS(2000);
+
+    // Initialize the system as slave
+    InitializeMaster();
 }
 
 int main(void) {
     Initialize();
-
-    UARTCharPut(UART0_BASE, 'W');
-    UARTCharPut(UART0_BASE, 'a');
-    UARTCharPut(UART0_BASE, 'i');
-    UARTCharPut(UART0_BASE, 't');
-    UARTCharPut(UART0_BASE, 'i');
-    UARTCharPut(UART0_BASE, 'n');
-    UARTCharPut(UART0_BASE, 'g');
-    UARTCharPut(UART0_BASE, '.');
-    UARTCharPut(UART0_BASE, '.');
-    UARTCharPut(UART0_BASE, '.');
-    UARTCharPut(UART0_BASE, '\n');
 
     while (1)
     {
