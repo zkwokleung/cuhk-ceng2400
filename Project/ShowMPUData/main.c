@@ -33,8 +33,8 @@
 
 #define MIN_PITCH_ANGLE 20
 #define MAX_PITCH_ANGLE 110
-#define MIN_PITCH_ANGLE 20
-#define MAX_PITCH_ANGLE 160
+#define MIN_YAW_ANGLE 20
+#define MAX_YAW_ANGLE 160
 
 // Storing the data from the MPU and the data to be sent via UART
 int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
@@ -58,10 +58,23 @@ static const int ZERO_OFFSET_COUN_2 = (int)(150);
 static int g_GetZeroOffset = 0;
 static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
 
+void ResetMPUData(void)
+{
+    X=0;
+    Y=0;
+    Z=0;
+    pitch =0;
+    yaw = 0;
+    g_GetZeroOffset = 0;
+    gyroX_offset = 0;
+    gyroY_offset = 0;
+    gyroZ_offset = 0;
+}
+
 char* Int_toString(int value)
 {
     char temp[20];
-    char result[20];
+    char *result = malloc(sizeof(char) * 20);
     int tempCount = 0;
     int resultCount = 0;
 
@@ -69,7 +82,7 @@ char* Int_toString(int value)
     {
         result[0] = '0';
         result [1] = '\0';
-        return &result[0];
+        return result;
     }
 
     if(value < 0)
@@ -99,6 +112,24 @@ void InitializeMPU(void)
 {
     MPU6050_Config(0x68, 1, 1);
     MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
+}
+
+void GPIO_PORtF_Handler(void);
+void InitializeButton(void)
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+
+    // set GPIOs for buttons
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = GPIO_LOCK_KEY;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_CR)  |= 0x01;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
+    GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);   // PF4 input
+    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);                 // interrupt enable
+    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_FALLING_EDGE); // only interrupt at falling edge (pressed)
+    GPIOIntRegister(GPIO_PORTF_BASE, GPIO_PORtF_Handler);           // dynamic isr registering
 }
 
 void InitializeUART()
@@ -235,6 +266,41 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
     delayMS(5);
 }
 
+void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
+{
+    // For convenience, we use:
+    //     negative Y as pitching up, positive Y as pitching down,
+    //     positive Z as yawing left, negative Z as yawing right,
+    //     and we don't care about the X.
+
+    Y *= -1, Z *= -1;
+
+    static int lastX = 0, lastY = 0, lastZ = 0;
+
+    // calculate delta change
+    int deltaY = Y - lastY, deltaZ = Z - lastZ;
+
+    // Scale the delta value so that the control feels normal
+    deltaY *= 2;
+    deltaZ *= 2;
+
+    *pitch += deltaY, *yaw += deltaZ;
+
+    // Clamp the pitch
+    if(*pitch < MIN_PITCH_ANGLE)
+        *pitch = MIN_PITCH_ANGLE;
+    else if(*pitch > MAX_PITCH_ANGLE)
+        *pitch = MAX_PITCH_ANGLE;
+
+    // Clamp the yaw
+    if(*yaw < MIN_YAW_ANGLE)
+        *yaw = MIN_YAW_ANGLE;
+    else if(*yaw > MAX_YAW_ANGLE)
+        *yaw = MAX_YAW_ANGLE;
+
+    lastX = X, lastY = Y, lastZ = Z;
+}
+
 void Initialize(void)
 {
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
@@ -247,17 +313,9 @@ void Initialize(void)
 
     // Initialize MPU
     InitializeMPU();
-}
 
-void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
-{
-    static int lastX = 0, lastY = 0, lastZ = 0;
-    // For convenience, we use:
-    //     negative Y as pitching up, positive Y as pitching down,
-    //     positive Z as yawing left, negative Z as yawing right,
-    //     and we don't care about the X.
-
-
+    // Initialize Buttons
+    InitializeButton();
 }
 
 int main(){
@@ -286,4 +344,13 @@ void I2CMSimpleIntHandler(void){
     UARTCharPut(UART0_BASE, ' ');
     UARTIntPut(UART0_BASE, Z);
     UARTStringPut(UART0_BASE, " x\n\r");
+
+    delayMS(5);
+}
+
+// Handle the button input
+void GPIO_PORtF_Handler(void)
+{
+    GPIOIntClear(GPIO_PORTF_BASE, GPIO_INT_PIN_4 | GPIO_INT_PIN_0);
+    ResetMPUData();
 }
