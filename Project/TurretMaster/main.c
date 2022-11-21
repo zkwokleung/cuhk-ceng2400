@@ -122,12 +122,7 @@ void InitializeUART(void)
 
 void InitializeMaster(void)
 {
-    UARTStringPut(UART5_BASE, "AT+ROLE=1\r\n");
-    delayMS(100);
-    UARTStringPut(UART5_BASE, "AT+CMODE=0\r\n");
-    delayMS(100);
-    UARTStringPut(UART5_BASE, "AT+BIND=22,4,3036F4\r\n");
-    delayMS(100);
+
 }
 
 void Initialize(void)
