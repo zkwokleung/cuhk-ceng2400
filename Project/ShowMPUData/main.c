@@ -71,43 +71,6 @@ void ResetMPUData(void)
     gyroZ_offset = 0;
 }
 
-char* Int_toString(int value)
-{
-    char temp[20];
-    char *result = malloc(sizeof(char) * 20);
-    int tempCount = 0;
-    int resultCount = 0;
-
-    if(value == 0)
-    {
-        result[0] = '0';
-        result [1] = '\0';
-        return result;
-    }
-
-    if(value < 0)
-    {
-        result[resultCount++] = '-';
-        value *= -1;
-    }
-
-    // Covert to char from LSB
-    while (value > 0)
-    {
-        temp[tempCount++] = (value % 10) + '0';
-        value /= 10;
-    }
-
-    // Put back the result from MSB
-    while (--tempCount >= 0)
-    {
-        result[resultCount++] = temp[tempCount];
-    }
-    result[resultCount] = '\0';
-
-    return &result[0];
-}
-
 void InitializeMPU(void)
 {
     MPU6050_Config(0x68, 1, 1);
@@ -161,7 +124,39 @@ void UARTStringPut(uint32_t ui32Base, char *str)
 
 void UARTIntPut(uint32_t ui32Base, int value)
 {
-    UARTStringPut(ui32Base, Int_toString(value));
+    char temp[20];
+    char result[20];
+    int tempCount = 0;
+    int resultCount = 0;
+
+    if(value == 0)
+    {
+        result[0] = '0';
+        result [1] = '\0';
+        UARTCharPut(ui32Base, '0');
+    }
+
+    if(value < 0)
+    {
+        result[resultCount++] = '-';
+        value *= -1;
+    }
+
+    // Covert to char from LSB
+    while (value > 0)
+    {
+        temp[tempCount++] = (value % 10) + '0';
+        value /= 10;
+    }
+
+    // Put back the result from MSB
+    while (--tempCount >= 0)
+    {
+        result[resultCount++] = temp[tempCount];
+    }
+    result[resultCount] = '\0';
+
+    UARTStringPut(ui32Base, result);
 }
 
 void InitI2C0(void)
@@ -213,8 +208,42 @@ void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status){
     g_bMPU6050Done = true;
 }
 
+void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
+{
+    // For convenience, we use:
+    //     negative Y as pitching up, positive Y as pitching down,
+    //     positive Z as yawing left, negative Z as yawing right,
+    //     and we don't care about the X.
 
-void GetMPUValue(int *pitch, int *roll, int *yaw)
+    Y *= -1, Z *= -1;
+
+    static int lastX = 0, lastY = 0, lastZ = 0;
+
+    // calculate delta change
+    int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
+
+    // Scale the delta value so that the control feels normal
+//    deltaY *= 2;
+//    deltaZ *= 2;
+
+    *pitch += deltaY, *yaw += deltaZ;
+
+    // Clamp the pitch
+    if(*pitch < MIN_PITCH_ANGLE)
+        *pitch = MIN_PITCH_ANGLE;
+    else if(*pitch > MAX_PITCH_ANGLE)
+        *pitch = MAX_PITCH_ANGLE;
+
+    // Clamp the yaw
+    if(*yaw < MIN_YAW_ANGLE)
+        *yaw = MIN_YAW_ANGLE;
+    else if(*yaw > MAX_YAW_ANGLE)
+        *yaw = MAX_YAW_ANGLE;
+
+    lastX = X, lastY = Y, lastZ = Z;
+}
+
+void GetMPU6050Data(int *pitch, int *roll, int *yaw)
 {
     double fAccel[3], fGyro[3];
     double tmp;
@@ -263,67 +292,7 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
     *pitch = (int)integralX;
     *roll = (int)integralY;
     *yaw = (int)integralZ;
-
     delayMS(5);
-}
-
-void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
-{
-    // For convenience, we use:
-    //     negative Y as pitching up, positive Y as pitching down,
-    //     positive Z as yawing left, negative Z as yawing right,
-    //     and we don't care about the X.
-
-    Y *= -1, Z *= -1;
-
-    static int lastX = 0, lastY = 0, lastZ = 0;
-
-    // calculate delta change
-    int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
-
-    // Scale the delta value so that the control feels normal
-//    deltaY *= 2;
-//    deltaZ *= 2;
-
-    *pitch += deltaY, *yaw += deltaZ;
-
-    // Clamp the pitch
-    if(*pitch < MIN_PITCH_ANGLE)
-        *pitch = MIN_PITCH_ANGLE;
-    else if(*pitch > MAX_PITCH_ANGLE)
-        *pitch = MAX_PITCH_ANGLE;
-
-    // Clamp the yaw
-    if(*yaw < MIN_YAW_ANGLE)
-        *yaw = MIN_YAW_ANGLE;
-    else if(*yaw > MAX_YAW_ANGLE)
-        *yaw = MAX_YAW_ANGLE;
-
-    lastX = X, lastY = Y, lastZ = Z;
-}
-
-void Initialize(void)
-{
-    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
-
-    // Initialize I2C
-    InitI2C0();
-
-    // Initialize UART
-    InitializeUART();
-
-    // Initialize MPU
-    InitializeMPU();
-
-    // Initialize Buttons
-    InitializeButton();
-}
-
-int main(){
-    Initialize();
-
-    while(1){
-    }
 }
 
 // The interrupt handler for the I2C module.
@@ -331,23 +300,68 @@ void I2CMSimpleIntHandler(void){
     // Call the I2C master driver interrupt handler.
     I2CMIntHandler(&g_sI2CMSimpleInst);
 
-    // Get the value from the MPU
-    GetMPUValue(&X, &Y, &Z);
-    // Normalize the value for the servo
-    GetNormalizedPitchYaw(X,Y, Z, &pitch, &yaw);
+    // Get the data from the MPU
+    GetMPU6050Data(&X, &Y, &Z);
+
+    // Normalize the data
+    GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
 
     // Display the Value in UART
-    UARTCharPut(UART0_BASE, 'R');
-    UARTCharPut(UART0_BASE, ' ');
+    UARTStringPut("R ");
     UARTIntPut(UART0_BASE, X);
     UARTCharPut(UART0_BASE, ' ');
     UARTIntPut(UART0_BASE, Y);
     UARTCharPut(UART0_BASE, ' ');
     UARTIntPut(UART0_BASE, Z);
     UARTStringPut(UART0_BASE, " x\n\r");
-
-    delayMS(5);
 }
+
+void InitializeMPU6050(void)
+{
+    MPU6050_Config(0x68, 1, 1);
+    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
+}
+
+void Initialize(void)
+{
+    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    // initialize I2C, you may do not care this part
+    InitI2C0();
+
+    // Initialize MPU6050
+    InitializeMPU6050();
+
+    // Initialize UART
+    InitializeUART();
+}
+
+int main(){
+    Initialize();
+
+    while(1){
+    }
+
+    return(0);
+}
+
+
+
+
+
+//// The interrupt handler for the I2C module.
+//void I2CMSimpleIntHandler(void){
+//    // Call the I2C master driver interrupt handler.
+//    I2CMIntHandler(&g_sI2CMSimpleInst);
+//
+//    // Get the value from the MPU
+//    GetMPUValue(&X, &Y, &Z);
+//    // Normalize the value for the servo
+////    GetNormalizedPitchYaw(X,Y, Z, &pitch, &yaw);
+//
+//
+//    delayMS(5);
+//}
 
 // Handle the button input
 void GPIO_PORtF_Handler(void)
