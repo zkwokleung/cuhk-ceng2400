@@ -307,7 +307,7 @@ void I2CMSimpleIntHandler(void){
     GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
 
     // Display the Value in UART
-    UARTStringPut("R ");
+    UARTStringPut(UART0_BASE, "R ");
     UARTIntPut(UART0_BASE, X);
     UARTCharPut(UART0_BASE, ' ');
     UARTIntPut(UART0_BASE, Y);
