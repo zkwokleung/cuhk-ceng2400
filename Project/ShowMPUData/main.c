@@ -279,11 +279,11 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     static int lastX = 0, lastY = 0, lastZ = 0;
 
     // calculate delta change
-    int deltaY = Y - lastY, deltaZ = Z - lastZ;
+    int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
 
     // Scale the delta value so that the control feels normal
-    deltaY *= 2;
-    deltaZ *= 2;
+//    deltaY *= 2;
+//    deltaZ *= 2;
 
     *pitch += deltaY, *yaw += deltaZ;
 
