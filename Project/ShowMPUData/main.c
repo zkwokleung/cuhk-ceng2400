@@ -246,17 +246,17 @@ void GetMPUValue(int *pitch, int *roll, int *yaw)
         integralX += gyroX * dt_2;
         integralY += gyroY * dt_2;
         integralZ += gyroZ * dt_2;
-        if (integralX > 180)
+        if (integralX > 360)
             integralX -= 360;
-        if (integralX < -180)
+        if (integralX < -360)
             integralX += 360;
-        if (integralY > 180)
+        if (integralY > 360)
             integralY -= 360;
-        if (integralY < -180)
+        if (integralY < -360)
             integralY += 360;
-        if (integralZ > 180)
+        if (integralZ > 360)
             integralZ -= 360;
-        if (integralZ < -180)
+        if (integralZ < -360)
             integralZ += 360;
     }
 
