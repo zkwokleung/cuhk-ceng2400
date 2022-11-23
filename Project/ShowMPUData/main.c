@@ -45,7 +45,7 @@ volatile bool g_bMPU6050Done;
 // I2C master instance
 tI2CMInstance g_sI2CMSimpleInst;
 
-//Device frequency
+// Device frequency
 int clockFreq;
 
 // read data from MPU6050.
@@ -58,41 +58,10 @@ static const int ZERO_OFFSET_COUN_2 = (int)(150);
 static int g_GetZeroOffset = 0;
 static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
 
-void ResetMPUData(void)
-{
-    X=0;
-    Y=0;
-    Z=0;
-    pitch =0;
-    yaw = 0;
-    g_GetZeroOffset = 0;
-    gyroX_offset = 0;
-    gyroY_offset = 0;
-    gyroZ_offset = 0;
-}
-
 void InitializeMPU(void)
 {
     MPU6050_Config(0x68, 1, 1);
     MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
-}
-
-void GPIO_PORtF_Handler(void);
-void InitializeButton(void)
-{
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
-
-    // set GPIOs for buttons
-    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = GPIO_LOCK_KEY;
-    HWREG(GPIO_PORTF_BASE + GPIO_O_CR)  |= 0x01;
-    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
-    GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
-    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
-
-    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);   // PF4 input
-    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);                 // interrupt enable
-    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_FALLING_EDGE); // only interrupt at falling edge (pressed)
-    GPIOIntRegister(GPIO_PORTF_BASE, GPIO_PORtF_Handler);           // dynamic isr registering
 }
 
 void InitializeUART()
@@ -124,19 +93,19 @@ void UARTStringPut(uint32_t ui32Base, char *str)
 
 void UARTIntPut(uint32_t ui32Base, int value)
 {
-    char temp[20];
-    char result[20];
+    char temp[10];
+    char result[10];
     int tempCount = 0;
     int resultCount = 0;
 
-    if(value == 0)
+    if (value == 0)
     {
         result[0] = '0';
-        result [1] = '\0';
+        result[1] = '\0';
         UARTCharPut(ui32Base, '0');
     }
 
-    if(value < 0)
+    if (value < 0)
     {
         result[resultCount++] = '-';
         value *= -1;
@@ -161,13 +130,13 @@ void UARTIntPut(uint32_t ui32Base, int value)
 
 void InitI2C0(void)
 {
-    //enable I2C module 0
+    // enable I2C module 0
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
 
-    //reset module
+    // reset module
     SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
 
-    //enable GPIO peripheral that contains I2C 0
+    // enable GPIO peripheral that contains I2C 0
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
 
     // Configure the pin muxing for I2C0 functions on port B2 and B3.
@@ -183,25 +152,26 @@ void InitI2C0(void)
     // I2C data transfer rate set to 400kbps.
     I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), true);
 
-    //clear I2C FIFOs
+    // clear I2C FIFOs
     HWREG(I2C0_BASE + I2C_O_FIFOCTL) = 80008000;
 
     // Initialize the I2C master driver.
     I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
-
 }
 
-void delayMS(int ms) {
-    //ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
-    SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;  // less accurate
+void delayMS(int ms)
+{
+    // ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
+    SysCtlDelay((SysCtlClockGet() / (3 * 1000)) * ms); // less accurate
 }
-
 
 // The function that is provided by this example as a callback when MPU6050
 // transactions have completed.
-void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status){
+void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status)
+{
     // See if an error occurred.
-    if (ui8Status != I2CM_STATUS_SUCCESS){
+    if (ui8Status != I2CM_STATUS_SUCCESS)
+    {
         // An error occurred, so handle it here if required.
     }
     // Indicate that the MPU6050 transaction has completed.
@@ -223,21 +193,21 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
 
     // Scale the delta value so that the control feels normal
-//    deltaY *= 2;
-//    deltaZ *= 2;
+    //    deltaY *= 2;
+    //    deltaZ *= 2;
 
     *pitch += deltaY, *yaw += deltaZ;
 
     // Clamp the pitch
-    if(*pitch < MIN_PITCH_ANGLE)
+    if (*pitch < MIN_PITCH_ANGLE)
         *pitch = MIN_PITCH_ANGLE;
-    else if(*pitch > MAX_PITCH_ANGLE)
+    else if (*pitch > MAX_PITCH_ANGLE)
         *pitch = MAX_PITCH_ANGLE;
 
     // Clamp the yaw
-    if(*yaw < MIN_YAW_ANGLE)
+    if (*yaw < MIN_YAW_ANGLE)
         *yaw = MIN_YAW_ANGLE;
-    else if(*yaw > MAX_YAW_ANGLE)
+    else if (*yaw > MAX_YAW_ANGLE)
         *yaw = MAX_YAW_ANGLE;
 
     lastX = X, lastY = Y, lastZ = Z;
@@ -249,13 +219,11 @@ void GetMPU6050Data(int *pitch, int *roll, int *yaw)
     double tmp;
     float gyroX, gyroY, gyroZ;
 
-    MPU6050_Read(&fAccel[0], &fAccel[1],&fAccel[2], &fGyro[0],&fGyro[1],&fGyro[2],&tmp);
+    MPU6050_Read(&fAccel[0], &fAccel[1], &fAccel[2], &fGyro[0], &fGyro[1], &fGyro[2], &tmp);
 
     gyroX = fGyro[0];
     gyroY = fGyro[1];
     gyroZ = fGyro[2];
-
-
 
     if (g_GetZeroOffset++ < ZERO_OFFSET_COUN)
     {
@@ -295,27 +263,6 @@ void GetMPU6050Data(int *pitch, int *roll, int *yaw)
     delayMS(5);
 }
 
-// The interrupt handler for the I2C module.
-void I2CMSimpleIntHandler(void){
-    // Call the I2C master driver interrupt handler.
-    I2CMIntHandler(&g_sI2CMSimpleInst);
-
-    // Get the data from the MPU
-    GetMPU6050Data(&X, &Y, &Z);
-
-    // Normalize the data
-    GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
-
-    // Display the Value in UART
-    UARTStringPut(UART0_BASE, "R ");
-    UARTIntPut(UART0_BASE, X);
-    UARTCharPut(UART0_BASE, ' ');
-    UARTIntPut(UART0_BASE, Y);
-    UARTCharPut(UART0_BASE, ' ');
-    UARTIntPut(UART0_BASE, Z);
-    UARTStringPut(UART0_BASE, " x\n\r");
-}
-
 void InitializeMPU6050(void)
 {
     MPU6050_Config(0x68, 1, 1);
@@ -336,36 +283,35 @@ void Initialize(void)
     InitializeUART();
 }
 
-int main(){
+int main()
+{
     Initialize();
 
-    while(1){
+    while (1)
+    {
     }
 
-    return(0);
+    return (0);
 }
 
-
-
-
-
-//// The interrupt handler for the I2C module.
-//void I2CMSimpleIntHandler(void){
-//    // Call the I2C master driver interrupt handler.
-//    I2CMIntHandler(&g_sI2CMSimpleInst);
-//
-//    // Get the value from the MPU
-//    GetMPUValue(&X, &Y, &Z);
-//    // Normalize the value for the servo
-////    GetNormalizedPitchYaw(X,Y, Z, &pitch, &yaw);
-//
-//
-//    delayMS(5);
-//}
-
-// Handle the button input
-void GPIO_PORtF_Handler(void)
+// The interrupt handler for the I2C module.
+void I2CMSimpleIntHandler(void)
 {
-    GPIOIntClear(GPIO_PORTF_BASE, GPIO_INT_PIN_4 | GPIO_INT_PIN_0);
-    ResetMPUData();
+    // Call the I2C master driver interrupt handler.
+    I2CMIntHandler(&g_sI2CMSimpleInst);
+
+    // Get the data from the MPU
+    GetMPU6050Data(&X, &Y, &Z);
+
+    // Normalize the data
+    GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
+
+    // Display the Value in UART
+    UARTStringPut(UART0_BASE, "R ");
+    UARTIntPut(UART0_BASE, X);
+    UARTCharPut(UART0_BASE, ' ');
+    UARTIntPut(UART0_BASE, Y);
+    UARTCharPut(UART0_BASE, ' ');
+    UARTIntPut(UART0_BASE, Z);
+    UARTStringPut(UART0_BASE, " x\n\r");
 }
