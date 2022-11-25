@@ -272,15 +272,14 @@ void InitializeMPU6050(void)
 void Initialize(void)
 {
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+    // Initialize UART
+    InitializeUART();
 
     // initialize I2C, you may do not care this part
     InitI2C0();
 
     // Initialize MPU6050
     InitializeMPU6050();
-
-    // Initialize UART
-    InitializeUART();
 }
 
 int main()
