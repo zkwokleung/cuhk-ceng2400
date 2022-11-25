@@ -238,8 +238,38 @@ void UART5IntHandler(void)
 
     while (UARTCharsAvail(UART5_BASE)) // loop while there are chars
     {
-        // TODO: Handle the received data
-        UARTCharPut(UART0_BASE, UARTCharGet(UART5_BASE)); // echo character
+        char c = UARTCharGet(UART5_BASE);
+
+        // If it is an enter key, process the data entered
+        if (c == 10 || c == 13)
+        {
+            UARTCharPut(UART0_BASE, '\n');
+            UARTCharPut(UART0_BASE, '\r');
+            uartReceive[uartReceiveCount] = '\0';
+            uartReceiveCount = 0;
+
+            // Process the received value and send it to the servo
+            if(uartReceive[0] == 'p' || uartReceive[0] == 'P')
+            {
+                ui32ServoPitchValue = atoi(uartReceive + 1);
+                // Set pitch value
+                SetServoPitch(ui32ServoPitchValue);
+            }
+            else if(uartReceive[0] == 'y' || uartReceive[0] == 'Y')
+            {
+                ui32ServoYawValue = atoi(uartReceive + 1);
+                // Set yaw value
+                SetServoYaw(ui32ServoYawValue);
+            }
+        }
+        else
+        {
+            // echo character
+            UARTCharPut(UART5_BASE, c);
+            // Store the character
+            uartReceive[uartReceiveCount++] = c;
+        }
+
         SysCtlDelay(SysCtlClockGet() / (1000 * 3));       // delay some time
     }
 }
