@@ -134,8 +134,10 @@ void InitializeUART(void)
  * MPU functions
  */
 #define MIN_PITCH_ANGLE 20
+#define INIT_PITCH_ANGLE 20
 #define MAX_PITCH_ANGLE 110
 #define MIN_YAW_ANGLE 20
+#define INIT_YAW_ANGLE 90
 #define MAX_YAW_ANGLE 160
 
 // Storing the data from the MPU and the data to be sent via UART
@@ -300,6 +302,10 @@ void InitI2C0(void)
  */
 void Initialize(void)
 {
+    // Initialize Data
+    yaw = INIT_YAW_ANGLE;
+    pitch = INIT_PITCH_ANGLE;
+
     // set clock
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
@@ -334,6 +340,21 @@ void I2CIntHandler(void)
     GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
 
     // Send the data to UART5
+    UARTCharPut(UART0_BASE, 'y');
+    UARTIntPut(UART0_BASE, yaw);
+    UARTStringPut(UART0_BASE, "\n\r");
+
+    UARTCharPut(UART0_BASE, 'p');
+    UARTIntPut(UART0_BASE, pitch);
+    UARTStringPut(UART0_BASE, "\n\r");
+
+    UARTCharPut(UART5_BASE, 'y');
+    UARTIntPut(UART5_BASE, yaw);
+    UARTStringPut(UART5_BASE, "\n\r");
+
+    UARTCharPut(UART5_BASE, 'p');
+    UARTIntPut(UART5_BASE, pitch);
+    UARTStringPut(UART5_BASE, "\n\r");
 }
 
 void UART0IntHandler(void)
