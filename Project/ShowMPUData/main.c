@@ -45,9 +45,6 @@ volatile bool g_bMPU6050Done;
 // I2C master instance
 tI2CMInstance g_sI2CMSimpleInst;
 
-// Device frequency
-int clockFreq;
-
 // read data from MPU6050.
 static const float dt = 1 / 200.0;
 static const int ZERO_OFFSET_COUN = (int)(200);

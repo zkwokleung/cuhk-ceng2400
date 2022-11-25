@@ -1,15 +1,30 @@
-#include <stdint.h>
+#include <math.h>
+#include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
+#include "driverlib/debug.h"
 #include "driverlib/gpio.h"
-#include "driverlib/pin_map.h"
-#include "driverlib/sysctl.h"
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
-#include "inc/hw_ints.h"
+#include "driverlib/i2c.h"
 #include "driverlib/interrupt.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/rom.h"
+#include "driverlib/rom_map.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/timer.h"
+#include "driverlib/uart.h"
+#include "inc/hw_gpio.h"
+#include "inc/hw_i2c.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_sysctl.h"
+#include "inc/hw_types.h"
+#include "include.h"
+#include "sensorlib/hw_mpu6050.h"
+#include "sensorlib/i2cm_drv.h"
+#include "sensorlib/mpu6050.h"
+#include "utils/uartstdio.h"
 
 /*
  * Generic Utilities
@@ -85,7 +100,7 @@ void InitializeUART(void)
 
     // set UART base addr., clock get and baud rate.
     // used to communicate with computer
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 38400,
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
 
     // enable UART5 and GPIOE
@@ -115,6 +130,174 @@ void InitializeUART(void)
     UARTIntEnable(UART5_BASE, UART_INT_RX | UART_INT_RT);
 }
 
+/*
+ * MPU functions
+ */
+#define MIN_PITCH_ANGLE 20
+#define MAX_PITCH_ANGLE 110
+#define MIN_YAW_ANGLE 20
+#define MAX_YAW_ANGLE 160
+
+// Storing the data from the MPU and the data to be sent via UART
+int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
+
+// A boolean that is set when a MPU6050 command has completed.
+volatile bool g_bMPU6050Done;
+
+// I2C master instance
+tI2CMInstance g_sI2CMSimpleInst;
+
+// read data from MPU6050.
+static const float dt = 1 / 200.0;
+static const int ZERO_OFFSET_COUN = (int)(200);
+
+static const float dt_2 = 1 / 150.0;
+static const int ZERO_OFFSET_COUN_2 = (int)(150);
+
+static int g_GetZeroOffset = 0;
+static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
+
+void InitializeMPU(void)
+{
+    MPU6050_Config(0x68, 1, 1);
+    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
+}
+
+// The function that is provided by this example as a callback when MPU6050
+// transactions have completed.
+void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status)
+{
+    // See if an error occurred.
+    if (ui8Status != I2CM_STATUS_SUCCESS)
+    {
+        // An error occurred, so handle it here if required.
+    }
+    // Indicate that the MPU6050 transaction has completed.
+    g_bMPU6050Done = true;
+}
+
+void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
+{
+    // For convenience, we use:
+    //     negative Y as pitching up, positive Y as pitching down,
+    //     positive Z as yawing left, negative Z as yawing right,
+    //     and we don't care about the X.
+
+    Y *= -1, Z *= -1;
+
+    static int lastX = 0, lastY = 0, lastZ = 0;
+
+    // calculate delta change
+    int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
+
+    // Scale the delta value so that the control feels normal
+    //    deltaY *= 2;
+    //    deltaZ *= 2;
+
+    *pitch += deltaY, *yaw += deltaZ;
+
+    // Clamp the pitch
+    if (*pitch < MIN_PITCH_ANGLE)
+        *pitch = MIN_PITCH_ANGLE;
+    else if (*pitch > MAX_PITCH_ANGLE)
+        *pitch = MAX_PITCH_ANGLE;
+
+    // Clamp the yaw
+    if (*yaw < MIN_YAW_ANGLE)
+        *yaw = MIN_YAW_ANGLE;
+    else if (*yaw > MAX_YAW_ANGLE)
+        *yaw = MAX_YAW_ANGLE;
+
+    lastX = X, lastY = Y, lastZ = Z;
+}
+
+void GetMPU6050Data(int *pitch, int *roll, int *yaw)
+{
+    double fAccel[3], fGyro[3];
+    double tmp;
+    float gyroX, gyroY, gyroZ;
+
+    MPU6050_Read(&fAccel[0], &fAccel[1], &fAccel[2], &fGyro[0], &fGyro[1], &fGyro[2], &tmp);
+
+    gyroX = fGyro[0];
+    gyroY = fGyro[1];
+    gyroZ = fGyro[2];
+
+    if (g_GetZeroOffset++ < ZERO_OFFSET_COUN)
+    {
+        gyroX_offset += gyroX * dt;
+        gyroY_offset += gyroY * dt;
+        gyroZ_offset += gyroZ * dt;
+    }
+
+    // remove zero shift
+    gyroX -= gyroX_offset;
+    gyroY -= gyroY_offset;
+    gyroZ -= gyroZ_offset;
+
+    static float integralX = 0.0f, integralY = 0.0f, integralZ = 0.0f;
+    if (g_GetZeroOffset > ZERO_OFFSET_COUN_2)
+    {
+        integralX += gyroX * dt_2;
+        integralY += gyroY * dt_2;
+        integralZ += gyroZ * dt_2;
+        if (integralX > 360)
+            integralX -= 360;
+        if (integralX < -360)
+            integralX += 360;
+        if (integralY > 360)
+            integralY -= 360;
+        if (integralY < -360)
+            integralY += 360;
+        if (integralZ > 360)
+            integralZ -= 360;
+        if (integralZ < -360)
+            integralZ += 360;
+    }
+
+    *pitch = (int)integralX;
+    *roll = (int)integralY;
+    *yaw = (int)integralZ;
+    delayMS(5);
+}
+
+/*
+ * I2C Functions
+ */
+void InitI2C0(void)
+{
+    // enable I2C module 0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+
+    // reset module
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
+
+    // enable GPIO peripheral that contains I2C 0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+
+    // Configure the pin muxing for I2C0 functions on port B2 and B3.
+    GPIOPinConfigure(GPIO_PB2_I2C0SCL);
+    GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+
+    // Select the I2C function for these pins.
+    GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
+    GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
+
+    // Enable and initialize the I2C0 master module.  Use the system clock for
+    // the I2C0 module.
+    // I2C data transfer rate set to 400kbps.
+    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), true);
+
+    // clear I2C FIFOs
+    HWREG(I2C0_BASE + I2C_O_FIFOCTL) = 80008000;
+
+    // Initialize the I2C master driver.
+    I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
+}
+
+/*
+ * Main System
+ */
 void Initialize(void)
 {
     // set clock
@@ -123,11 +306,11 @@ void Initialize(void)
     // Initialize UART
     InitializeUART();
 
-    // Wait for two seconds before initializing slave configuration
-    delayMS(2000);
+    // initialize I2C, you may do not care this part
+    InitI2C0();
 
-    // Initialize the system as slave
-    InitializeSlave();
+    // Initialize MPU6050
+    InitializeMPU();
 }
 
 int main(void)
@@ -137,6 +320,20 @@ int main(void)
     while (1)
     {
     }
+}
+
+void I2CIntHandler(void)
+{
+    // Call the I2C master driver interrupt handler.
+    I2CMIntHandler(&g_sI2CMSimpleInst);
+
+    // Get the data from the MPU
+    GetMPU6050Data(&X, &Y, &Z);
+
+    // Normalize the data
+    GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
+
+    // Send the data to UART5
 }
 
 void UART0IntHandler(void)
