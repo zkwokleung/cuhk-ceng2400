@@ -1,19 +1,42 @@
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
+#include "driverlib/debug.h"
 #include "driverlib/gpio.h"
+#include "driverlib/interrupt.h"
 #include "driverlib/pin_map.h"
+#include "driverlib/pwm.h"
+#include "driverlib/rom.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/uart.h"
-#include "utils/uartstdio.h"
+#include "inc/hw_gpio.h"
 #include "inc/hw_ints.h"
-#include "driverlib/interrupt.h"
-
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "utils/uartstdio.h"
 /*
  * Motor functions
  */
+#define PWM_FREQUENCY 55
+#define SERVO_MIN_PITCH 20
+#define SERVO_INIT_PITCH 20
+#define SERVO_MAX_PITCH 110
+#define SERVO_MIN_YAW 20
+#define SERVO_INIT_YAW 90
+#define SERVO_MAX_YAW 160
+
+// Store the pwm clock
+volatile uint32_t ui32Load;
+volatile uint32_t ui32PWMClock;
+
+// Store the value of the servo
+volatile uint32_t ui32ServoYawValue;
+volatile uint32_t ui32ServoPitchValue;
+
+// Store the UART input
+char uartReceive[100];
+int uartReceiveCount = 0;
+
 // Set the left/right rotation of the servo
 void SetServoYaw(int value)
 {
@@ -171,11 +194,11 @@ void Initialize(void)
     // Initialize UART
     InitializeUART();
 
-    // Wait for two seconds before initializing slave configuration
-    delayMS(2000);
+    InitializePWM();
 
-    // Initialize the system as slave
-    InitializeSlave();
+    // set the servo's initial position
+    SetServoPitch(SERVO_INIT_PITCH);
+    SetServoYaw(SERVO_INIT_YAW);
 }
 
 int main(void)
