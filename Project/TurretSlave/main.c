@@ -19,10 +19,10 @@
  */
 #define PWM_FREQUENCY 55
 #define SERVO_MIN_PITCH 20
-#define SERVO_INIT_PITCH 20
+#define SERVO_INIT_PITCH 110
 #define SERVO_MAX_PITCH 110
 #define SERVO_MIN_YAW 20
-#define SERVO_INIT_YAW 90
+#define SERVO_INIT_YAW 160
 #define SERVO_MAX_YAW 160
 
 // Store the pwm clock
