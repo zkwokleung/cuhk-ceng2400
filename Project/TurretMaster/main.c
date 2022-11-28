@@ -87,22 +87,6 @@ void UARTIntPut(uint32_t ui32Base, int value)
 
 void InitializeUART(void)
 {
-    // enable UART0 and GPIOA.
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
-
-    // Configure PA0 for RX
-    // Configure PA1 for TX
-    GPIOPinConfigure(GPIO_PA0_U0RX);
-    GPIOPinConfigure(GPIO_PA1_U0TX);
-    // Set PORTA pin0 and pin1 as UART type
-    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-
-    // set UART base addr., clock get and baud rate.
-    // used to communicate with computer
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
-                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-
     // enable UART5 and GPIOE
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART5);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
@@ -121,13 +105,6 @@ void InitializeUART(void)
 
     GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3);
     GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2 | GPIO_PIN_1 | GPIO_PIN_3, 2);
-
-    // set interrupt for receiving and showing values
-    IntMasterEnable();
-    IntEnable(INT_UART0);
-    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
-    IntEnable(INT_UART5);
-    UARTIntEnable(UART5_BASE, UART_INT_RX | UART_INT_RT);
 }
 
 /*
@@ -184,8 +161,6 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     //     negative Y as pitching up, positive Y as pitching down,
     //     positive Z as yawing left, negative Z as yawing right,
     //     and we don't care about the X.
-
-    Z*=-1;
 
     static int lastX = 0, lastY = 0, lastZ = 0;
 
@@ -355,38 +330,5 @@ void I2CIntHandler(void)
     UARTIntPut(UART5_BASE, pitch);
     UARTStringPut(UART5_BASE, "\n\r");
 
-    delayMS(50);
-}
-
-void UART0IntHandler(void)
-{
-    uint32_t ui32Status;
-
-    ui32Status = UARTIntStatus(UART5_BASE, true); // get interrupt status
-
-    UARTIntClear(UART0_BASE, ui32Status); // clear the asserted interrupts
-
-    while (UARTCharsAvail(UART0_BASE)) // loop while there are chars
-    {
-        UARTCharPut(UART5_BASE, UARTCharGet(UART0_BASE)); // echo character
-        SysCtlDelay(SysCtlClockGet() / (1000 * 3));       // delay some time
-    }
-}
-
-// check whether there are any items in the FIFO of UART5.
-// get characters from UART5 that communicates with bluetooth.
-// send received characters to UART0 that communicates with PC.
-void UART5IntHandler(void)
-{
-    uint32_t ui32Status;
-
-    ui32Status = UARTIntStatus(UART5_BASE, true); // get interrupt status
-
-    UARTIntClear(UART5_BASE, ui32Status); // clear the asserted interrupts
-
-    while (UARTCharsAvail(UART5_BASE)) // loop while there are chars
-    {
-        // TODO: Handle the received data
-        UARTCharPut(UART0_BASE, UARTCharGet(UART5_BASE)); // echo character
-    }
+    delayMS(5);
 }
