@@ -185,7 +185,7 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     //     positive Z as yawing left, negative Z as yawing right,
     //     and we don't care about the X.
 
-    Y *= -1, Z *= -1;
+    Z*=-1;
 
     static int lastX = 0, lastY = 0, lastZ = 0;
 
@@ -196,7 +196,7 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     //    deltaY *= 2;
     //    deltaZ *= 2;
 
-    *pitch += deltaY, *yaw += deltaZ;
+    *pitch += deltaX, *yaw += deltaZ;
 
     // Clamp the pitch
     if (*pitch < MIN_PITCH_ANGLE)
@@ -260,7 +260,7 @@ void GetMPU6050Data(int *pitch, int *roll, int *yaw)
     *pitch = (int)integralX;
     *roll = (int)integralY;
     *yaw = (int)integralZ;
-    delayMS(5);
+    delayMS(105);
 }
 
 /*

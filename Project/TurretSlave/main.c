@@ -156,7 +156,7 @@ void InitializeUART(void)
 
     // set UART base addr., clock get and baud rate.
     // used to communicate with computer
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 38400,
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
 
     // enable UART5 and GPIOE
@@ -270,6 +270,6 @@ void UART5IntHandler(void)
             uartReceive[uartReceiveCount++] = c;
         }
 
-        SysCtlDelay(SysCtlClockGet() / (1000 * 3));       // delay some time
+        delayMS(5);       // delay some time
     }
 }
