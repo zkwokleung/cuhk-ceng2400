@@ -37,6 +37,17 @@ volatile uint32_t ui32ServoPitchValue;
 char uartReceive[100];
 int uartReceiveCount = 0;
 
+// Bonus
+bool doingMove = false;
+
+/*
+ * Generic Utilities
+ */
+void delayMS(int ms)
+{
+    SysCtlDelay((SysCtlClockGet() / (3 * 1000)) * ms); // less accurate
+}
+
 // Set the left/right rotation of the servo
 void SetServoYaw(int value)
 {
@@ -45,6 +56,7 @@ void SetServoYaw(int value)
         return;
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, value * ui32Load / 1000);
+    delayMS(40);
 }
 
 // Set the up/down rotation of the servo
@@ -55,6 +67,7 @@ void SetServoPitch(int value)
         return;
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_1, value * ui32Load / 1000);
+    delayMS(40);
 }
 
 void InitializePWM()
@@ -80,14 +93,6 @@ void InitializePWM()
     // Enable PWM
     PWMOutputState(PWM1_BASE, PWM_OUT_0_BIT | PWM_OUT_1_BIT, true);
     PWMGenEnable(PWM1_BASE, PWM_GEN_0);
-}
-
-/*
- * Generic Utilities
- */
-void delayMS(int ms)
-{
-    SysCtlDelay((SysCtlClockGet() / (3 * 1000)) * ms); // less accurate
 }
 
 /*
@@ -186,10 +191,22 @@ void InitializeUART(void)
     UARTIntEnable(UART5_BASE, UART_INT_RX | UART_INT_RT);
 }
 
+void InitializeButton(void)
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = GPIO_LOCK_KEY;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_CR)  |= 0x01;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
+    GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+}
+
 void Initialize(void)
 {
     // set clock
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    InitializeButton();
 
     // Initialize UART
     InitializeUART();
@@ -207,6 +224,39 @@ int main(void)
 
     while (1)
     {
+        // Check whether the button is pressed
+        if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4)==0x00)
+        {
+            doingMove = true;
+            // Nodding
+            SetServoPitch(20);
+            delayMS(300);
+            SetServoPitch(80);
+            delayMS(300);
+            SetServoPitch(20);
+            delayMS(300);
+            SetServoPitch(80);
+            delayMS(300);
+            SetServoPitch(20);
+            doingMove = false;
+        }
+
+        // Check whether the button is pressed
+        if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0)==0x00)
+        {
+            doingMove = true;
+            // Shaking
+            SetServoYaw(60);
+            delayMS(300);
+            SetServoYaw(120);
+            delayMS(300);
+            SetServoYaw(60);
+            delayMS(300);
+            SetServoYaw(120);
+            delayMS(300);
+            SetServoYaw(120);
+            doingMove = false;
+        }
     }
 }
 
@@ -217,12 +267,6 @@ void UART0IntHandler(void)
     ui32Status = UARTIntStatus(UART5_BASE, true); // get interrupt status
 
     UARTIntClear(UART0_BASE, ui32Status); // clear the asserted interrupts
-
-    while (UARTCharsAvail(UART0_BASE)) // loop while there are chars
-    {
-        UARTCharPut(UART5_BASE, UARTCharGet(UART0_BASE)); // echo character
-        SysCtlDelay(SysCtlClockGet() / (1000 * 3));       // delay some time
-    }
 }
 
 // check whether there are any items in the FIFO of UART5.
@@ -230,6 +274,9 @@ void UART0IntHandler(void)
 // send received characters to UART0 that communicates with PC.
 void UART5IntHandler(void)
 {
+    if(doingMove)
+        return;
+
     uint32_t ui32Status;
 
     ui32Status = UARTIntStatus(UART5_BASE, true); // get interrupt status
@@ -243,8 +290,6 @@ void UART5IntHandler(void)
         // If it is an enter key, process the data entered
         if (c == 10 || c == 13)
         {
-            UARTCharPut(UART0_BASE, '\n');
-            UARTCharPut(UART0_BASE, '\r');
             uartReceive[uartReceiveCount] = '\0';
             uartReceiveCount = 0;
 
@@ -268,6 +313,6 @@ void UART5IntHandler(void)
             uartReceive[uartReceiveCount++] = c;
         }
 
-        delayMS(5);       // delay some time
+        delayMS(50);       // delay some time
     }
 }
