@@ -56,6 +56,8 @@ void SetServoYaw(int value)
         return;
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, value * ui32Load / 1000);
+
+    delayMS(30);       // delay some time
 }
 
 // Set the up/down rotation of the servo
@@ -66,6 +68,8 @@ void SetServoPitch(int value)
         return;
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_1, value * ui32Load / 1000);
+
+    delayMS(5);       // delay some time
 }
 
 void InitializePWM()
@@ -311,6 +315,4 @@ void UART5IntHandler(void)
             uartReceive[uartReceiveCount++] = c;
         }
     }
-
-    delayMS(50);       // delay some time
 }
