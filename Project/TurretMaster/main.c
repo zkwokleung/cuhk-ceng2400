@@ -260,7 +260,6 @@ void GetMPU6050Data(int *pitch, int *roll, int *yaw)
     *pitch = (int)integralX;
     *roll = (int)integralY;
     *yaw = (int)integralZ;
-    delayMS(105);
 }
 
 /*
@@ -387,6 +386,5 @@ void UART5IntHandler(void)
     {
         // TODO: Handle the received data
         UARTCharPut(UART0_BASE, UARTCharGet(UART5_BASE)); // echo character
-        SysCtlDelay(SysCtlClockGet() / (1000 * 3));       // delay some time
     }
 }

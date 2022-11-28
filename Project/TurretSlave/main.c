@@ -264,8 +264,6 @@ void UART5IntHandler(void)
         }
         else
         {
-            // echo character
-            UARTCharPut(UART5_BASE, c);
             // Store the character
             uartReceive[uartReceiveCount++] = c;
         }
