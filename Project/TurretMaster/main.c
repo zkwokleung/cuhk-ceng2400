@@ -87,6 +87,22 @@ void UARTIntPut(uint32_t ui32Base, int value)
 
 void InitializeUART(void)
 {
+    // enable UART0 and GPIOA.
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+
+    // Configure PA0 for RX
+    // Configure PA1 for TX
+    GPIOPinConfigure(GPIO_PA0_U0RX);
+    GPIOPinConfigure(GPIO_PA1_U0TX);
+    // Set PORTA pin0 and pin1 as UART type
+    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+
+    // set UART base addr., clock get and baud rate.
+    // used to communicate with computer
+    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
+                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+
     // enable UART5 and GPIOE
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART5);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
@@ -105,6 +121,13 @@ void InitializeUART(void)
 
     GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3);
     GPIOPinWrite(GPIO_PORTE_BASE, GPIO_PIN_2 | GPIO_PIN_1 | GPIO_PIN_3, 2);
+
+    // set interrupt for receiving and showing values
+    IntMasterEnable();
+    IntEnable(INT_UART0);
+    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
+    IntEnable(INT_UART5);
+    UARTIntEnable(UART5_BASE, UART_INT_RX | UART_INT_RT);
 }
 
 /*
