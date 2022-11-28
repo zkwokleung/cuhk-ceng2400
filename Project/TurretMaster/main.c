@@ -271,6 +271,16 @@ void InitI2C0(void)
     I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
 }
 
+void InitializeButton(void)
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = GPIO_LOCK_KEY;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_CR)  |= 0x01;
+    HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
+    GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+}
+
 /*
  * Main System
  */
