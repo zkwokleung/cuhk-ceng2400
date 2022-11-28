@@ -354,6 +354,8 @@ void I2CIntHandler(void)
     UARTCharPut(UART5_BASE, 'p');
     UARTIntPut(UART5_BASE, pitch);
     UARTStringPut(UART5_BASE, "\n\r");
+
+    delayMS(50);
 }
 
 void UART0IntHandler(void)
