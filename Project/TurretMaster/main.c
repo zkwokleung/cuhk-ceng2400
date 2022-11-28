@@ -170,7 +170,6 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     // Scale the delta value so that the control feels normal
     //    deltaY *= 2;
     //    deltaZ *= 2;
-    deltaX /= 2;
 
     *pitch += deltaX, *yaw += deltaZ;
 
@@ -328,6 +327,8 @@ void I2CIntHandler(void)
     UARTCharPut(UART5_BASE, 'y');
     UARTIntPut(UART5_BASE, yaw);
     UARTStringPut(UART5_BASE, "\n\r");
+
+    delayMS(5);
 
     UARTCharPut(UART5_BASE, 'p');
     UARTIntPut(UART5_BASE, pitch);
