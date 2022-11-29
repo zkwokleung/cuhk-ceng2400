@@ -110,12 +110,12 @@ void InitializeUART(void)
 /*
  * MPU functions
  */
-#define MIN_PITCH_ANGLE 50
+#define MIN_PITCH_ANGLE 45
 #define INIT_PITCH_ANGLE 50
 #define MAX_PITCH_ANGLE 110
 #define MIN_YAW_ANGLE 20
-#define INIT_YAW_ANGLE 90
-#define MAX_YAW_ANGLE 160
+#define INIT_YAW_ANGLE 55
+#define MAX_YAW_ANGLE 89
 
 // Storing the data from the MPU and the data to be sent via UART
 int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
@@ -169,7 +169,7 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
 
     // Scale the delta value so that the control feels normal
     //    deltaY *= 2;
-    //    deltaZ *= 2;
+        deltaZ *= 2;
 
     *pitch += deltaX, *yaw += deltaZ;
 
