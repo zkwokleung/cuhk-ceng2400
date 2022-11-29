@@ -120,6 +120,8 @@ void InitializeUART(void)
 // Storing the data from the MPU and the data to be sent via UART
 int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
 
+int lastX = 0, lastY = 0, lastZ = 0;
+
 // A boolean that is set when a MPU6050 command has completed.
 volatile bool g_bMPU6050Done;
 
@@ -161,8 +163,6 @@ void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
     //     negative Y as pitching up, positive Y as pitching down,
     //     positive Z as yawing left, negative Z as yawing right,
     //     and we don't care about the X.
-
-    static int lastX = 0, lastY = 0, lastZ = 0;
 
     // calculate delta change
     double deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
@@ -271,6 +271,14 @@ void InitI2C0(void)
     I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
 }
 
+void ButtonIntHandler(void)
+{
+    GPIOIntClear(GPIO_PORTF_BASE, GPIO_INT_PIN_4 | GPIO_INT_PIN_0);
+    // Reset data
+    lastX = 0, lastY = 0, lastZ = 0, X= 0, Y = 0, Z= 0;
+    gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
+}
+
 void InitializeButton(void)
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
@@ -279,6 +287,9 @@ void InitializeButton(void)
     HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
     GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
     GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);                 // interrupt enable
+    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_FALLING_EDGE); // only interrupt at falling edge (pressed)
+    GPIOIntRegister(GPIO_PORTF_BASE, ButtonIntHandler);           // dynamic isr registering
 }
 
 /*
@@ -292,6 +303,8 @@ void Initialize(void)
 
     // set clock
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    InitializeButton();
 
     // Initialize UART
     InitializeUART();
