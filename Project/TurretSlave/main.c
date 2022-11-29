@@ -18,12 +18,12 @@
  * Motor functions
  */
 #define PWM_FREQUENCY 55
-#define SERVO_MIN_PITCH 20
-#define SERVO_INIT_PITCH 110
+#define SERVO_MIN_PITCH 45
+#define SERVO_INIT_PITCH 100
 #define SERVO_MAX_PITCH 110
 #define SERVO_MIN_YAW 20
-#define SERVO_INIT_YAW 160
-#define SERVO_MAX_YAW 160
+#define SERVO_INIT_YAW 90
+#define SERVO_MAX_YAW 110
 
 // Store the pwm clock
 volatile uint32_t ui32Load;
@@ -275,9 +275,41 @@ void UART0IntHandler(void)
 {
     uint32_t ui32Status;
 
-    ui32Status = UARTIntStatus(UART5_BASE, true); // get interrupt status
+    ui32Status = UARTIntStatus(UART0_BASE, true); // get interrupt status
 
     UARTIntClear(UART0_BASE, ui32Status); // clear the asserted interrupts
+
+    while (UARTCharsAvail(UART0_BASE)){
+        char c = UARTCharGet(UART0_BASE);
+        // If it is an enter key, process the data entered
+        if (c == 10 || c == 13)
+        {
+            // Show character on terminal
+            UARTStringPut(UART0_BASE, "\n\r");
+            uartReceive[uartReceiveCount] = '\0';
+            uartReceiveCount = 0;
+
+            // Process the received value and send it to the servo
+            if(uartReceive[0] == 'p' || uartReceive[0] == 'P')
+            {
+                ui32ServoPitchValue = atoi(uartReceive + 1);
+                // Set pitch value
+                SetServoPitch(ui32ServoPitchValue);
+            }
+            else if(uartReceive[0] == 'y' || uartReceive[0] == 'Y')
+            {
+                ui32ServoYawValue = atoi(uartReceive + 1);
+                // Set yaw value
+                SetServoYaw(ui32ServoYawValue);
+            }
+        }
+        else
+        {
+            // Store the character
+            uartReceive[uartReceiveCount++] = c;
+            UARTCharPut(UART0_BASE, c); // Display the character
+        }
+    }
 }
 
 // check whether there are any items in the FIFO of UART5.
@@ -301,6 +333,8 @@ void UART5IntHandler(void)
         // If it is an enter key, process the data entered
         if (c == 10 || c == 13)
         {
+            // Show character on terminal
+            UARTStringPut(UART0_BASE, "\n\r");
             uartReceive[uartReceiveCount] = '\0';
             uartReceiveCount = 0;
 
@@ -322,6 +356,7 @@ void UART5IntHandler(void)
         {
             // Store the character
             uartReceive[uartReceiveCount++] = c;
+            UARTCharPut(UART0_BASE, c); // Display the character
         }
     }
 }
