@@ -1,3 +1,32 @@
+// Read data from MPU6050, and show them via UART
+// author: Xiangyu Wen
+// Date: 2022.11.01
+
+// hardware connection:
+// MPU VCC -> pad 3.3v
+// MPU SCL -> pad PB2
+// MPU SDA -> pad PB3
+
+// Software functions:
+// In this project folder, you may only focus on the main.c and tm4c123gh6pm_startup_ccs.c,
+// the other files support the function of MPU6050 reading.
+// I2C0 used to communicate with MPU
+
+// send package format:
+// R aaa bbb ccc x
+
+
+// NOTE:
+// the raw data of these three axes are all from -180 to 180.
+// No matter which two axes you decide to use to control the servo,
+// you need to ensure that the the scale of servo Pitch angle should be constrained to 20 - 110,
+// and the scale of servo Yaw angle should be constrained to 20 - 160.
+// Otherwise, the servo may be broken!
+
+// What you need to do:
+// 1. design a parser to process the raw MPU data to a proper format according to the NOTE.
+// 2. show the processed data via UART
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -31,109 +60,25 @@
 
 #include "include.h"
 
-#define MIN_PITCH_ANGLE 20
-#define MAX_PITCH_ANGLE 110
-#define MIN_YAW_ANGLE 20
-#define MAX_YAW_ANGLE 160
-
-// Storing the data from the MPU and the data to be sent via UART
-int X = 0, Y = 0, Z = 0, pitch = 0, yaw = 0;
-
 // A boolean that is set when a MPU6050 command has completed.
 volatile bool g_bMPU6050Done;
 
 // I2C master instance
 tI2CMInstance g_sI2CMSimpleInst;
 
-// read data from MPU6050.
-static const float dt = 1 / 200.0;
-static const int ZERO_OFFSET_COUN = (int)(200);
+//Device frequency
+int clockFreq;
 
-static const float dt_2 = 1 / 150.0;
-static const int ZERO_OFFSET_COUN_2 = (int)(150);
-
-static int g_GetZeroOffset = 0;
-static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
-
-void InitializeMPU(void)
-{
-    MPU6050_Config(0x68, 1, 1);
-    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
-}
-
-void InitializeUART()
-{
-    // Enable UART0 and GPIOA to send signals via UART
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
-
-    // Configure and enable UART
-    GPIOPinConfigure(GPIO_PA0_U0RX);
-    GPIOPinConfigure(GPIO_PA1_U0TX);
-    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-    UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
-                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-
-    IntMasterEnable();
-    IntEnable(INT_UART0);
-    UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
-}
-
-void UARTStringPut(uint32_t ui32Base, char *str)
-{
-    int i;
-    for (i = 0; str[i] != '\0'; i++)
-    {
-        UARTCharPut(ui32Base, str[i]);
-    }
-}
-
-void UARTIntPut(uint32_t ui32Base, int value)
-{
-    char temp[10];
-    char result[10];
-    int tempCount = 0;
-    int resultCount = 0;
-
-    if (value == 0)
-    {
-        result[0] = '0';
-        result[1] = '\0';
-        UARTCharPut(ui32Base, '0');
-    }
-
-    if (value < 0)
-    {
-        result[resultCount++] = '-';
-        value *= -1;
-    }
-
-    // Covert to char from LSB
-    while (value > 0)
-    {
-        temp[tempCount++] = (value % 10) + '0';
-        value /= 10;
-    }
-
-    // Put back the result from MSB
-    while (--tempCount >= 0)
-    {
-        result[resultCount++] = temp[tempCount];
-    }
-    result[resultCount] = '\0';
-
-    UARTStringPut(ui32Base, result);
-}
 
 void InitI2C0(void)
 {
-    // enable I2C module 0
+    //enable I2C module 0
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
 
-    // reset module
+    //reset module
     SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
 
-    // enable GPIO peripheral that contains I2C 0
+    //enable GPIO peripheral that contains I2C 0
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
 
     // Configure the pin muxing for I2C0 functions on port B2 and B3.
@@ -149,78 +94,62 @@ void InitI2C0(void)
     // I2C data transfer rate set to 400kbps.
     I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), true);
 
-    // clear I2C FIFOs
+    //clear I2C FIFOs
     HWREG(I2C0_BASE + I2C_O_FIFOCTL) = 80008000;
 
     // Initialize the I2C master driver.
     I2CMInit(&g_sI2CMSimpleInst, I2C0_BASE, INT_I2C0, 0xff, 0xff, SysCtlClockGet());
+
 }
 
-void delayMS(int ms)
-{
-    // ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
-    SysCtlDelay((SysCtlClockGet() / (3 * 1000)) * ms); // less accurate
+void delayMS(int ms) {
+    //ROM_SysCtlDelay( (ROM_SysCtlClockGet()/(3*1000))*ms ) ;  // more accurate
+    SysCtlDelay( (SysCtlClockGet()/(3*1000))*ms ) ;  // less accurate
 }
 
 // The function that is provided by this example as a callback when MPU6050
 // transactions have completed.
-void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status)
-{
+void MPU6050Callback(void *pvCallbackData, uint_fast8_t ui8Status){
     // See if an error occurred.
-    if (ui8Status != I2CM_STATUS_SUCCESS)
-    {
+    if (ui8Status != I2CM_STATUS_SUCCESS){
         // An error occurred, so handle it here if required.
     }
     // Indicate that the MPU6050 transaction has completed.
     g_bMPU6050Done = true;
 }
 
-void GetNormalizedPitchYaw(int X, int Y, int Z, int *pitch, int *yaw)
-{
-    // For convenience, we use:
-    //     negative Y as pitching up, positive Y as pitching down,
-    //     positive Z as yawing left, negative Z as yawing right,
-    //     and we don't care about the X.
 
-    Y *= -1, Z *= -1;
-
-    static int lastX = 0, lastY = 0, lastZ = 0;
-
-    // calculate delta change
-    int deltaX = X - lastX, deltaY = Y - lastY, deltaZ = Z - lastZ;
-
-    // Scale the delta value so that the control feels normal
-    //    deltaY *= 2;
-    //    deltaZ *= 2;
-
-    *pitch += deltaY, *yaw += deltaZ;
-
-    // Clamp the pitch
-    if (*pitch < MIN_PITCH_ANGLE)
-        *pitch = MIN_PITCH_ANGLE;
-    else if (*pitch > MAX_PITCH_ANGLE)
-        *pitch = MAX_PITCH_ANGLE;
-
-    // Clamp the yaw
-    if (*yaw < MIN_YAW_ANGLE)
-        *yaw = MIN_YAW_ANGLE;
-    else if (*yaw > MAX_YAW_ANGLE)
-        *yaw = MAX_YAW_ANGLE;
-
-    lastX = X, lastY = Y, lastZ = Z;
+// The interrupt handler for the I2C module.
+void I2CMSimpleIntHandler(void){
+    // Call the I2C master driver interrupt handler.
+    I2CMIntHandler(&g_sI2CMSimpleInst);
 }
 
-void GetMPU6050Data(int *pitch, int *roll, int *yaw)
+
+// read data from MPU6050.
+static const float dt = 1 / 200.0;
+static const int ZERO_OFFSET_COUN = (int)(200);
+
+static const float dt_2 = 1 / 150.0;
+static const int ZERO_OFFSET_COUN_2 = (int)(150);
+
+static int g_GetZeroOffset = 0;
+static float gyroX_offset = 0.0f, gyroY_offset = 0.0f, gyroZ_offset = 0.0f;
+
+
+void MPU6050Example(int *pitch, int *roll, int *yaw)
 {
     double fAccel[3], fGyro[3];
     double tmp;
     float gyroX, gyroY, gyroZ;
 
-    MPU6050_Read(&fAccel[0], &fAccel[1], &fAccel[2], &fGyro[0], &fGyro[1], &fGyro[2], &tmp);
+    MPU6050_Read(&fAccel[0], &fAccel[1],&fAccel[2], &fGyro[0],&fGyro[1],&fGyro[2],&tmp);
 
     gyroX = fGyro[0];
     gyroY = fGyro[1];
     gyroZ = fGyro[2];
+
+
 
     if (g_GetZeroOffset++ < ZERO_OFFSET_COUN)
     {
@@ -260,54 +189,40 @@ void GetMPU6050Data(int *pitch, int *roll, int *yaw)
     delayMS(5);
 }
 
-void InitializeMPU6050(void)
-{
-    MPU6050_Config(0x68, 1, 1);
-    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
-}
-
-void Initialize(void)
-{
+int main(){
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
-    // Initialize UART
-    InitializeUART();
 
     // initialize I2C, you may do not care this part
     InitI2C0();
 
-    // Initialize MPU6050
-    InitializeMPU6050();
-}
+    MPU6050_Config(0x68, 1, 1);
+    MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
 
-int main()
-{
-    Initialize();
+    int X = 0, Y = 0, Z = 0;
 
-    while (1)
-    {
+    while(1){
+        // get raw data from MPU6050
+        MPU6050Example(&X, &Y, &Z);
+        // scale to a proper Master rotation
+
+
+        // NOTE:
+        // the raw data of these three axes are all from -180 to 180.
+        // No matter which two axes you decide to use to control the servo,
+        // you need to ensure that the the scale of servo Pitch angle should be constrained to 20 - 110,
+        // and the scale of servo Yaw angle should be constrained to 20 - 160.
+        // Otherwise, the servo may be broken!
+
+        // design your parse to process the collected raw MPU data here
+
+
+        // show data here (recommend to use interrupt)
+        // example: R aaa bbb ccc x
+
     }
 
-    return (0);
+    return(0);
 }
 
-// The interrupt handler for the I2C module.
-void I2CMSimpleIntHandler(void)
-{
-    // Call the I2C master driver interrupt handler.
-    I2CMIntHandler(&g_sI2CMSimpleInst);
 
-    // Get the data from the MPU
-    GetMPU6050Data(&X, &Y, &Z);
 
-    // Normalize the data
-    GetNormalizedPitchYaw(X, Y, Z, &pitch, &yaw);
-
-    // Display the Value in UART
-    UARTStringPut(UART0_BASE, "R ");
-    UARTIntPut(UART0_BASE, X);
-    UARTCharPut(UART0_BASE, ' ');
-    UARTIntPut(UART0_BASE, Y);
-    UARTCharPut(UART0_BASE, ' ');
-    UARTIntPut(UART0_BASE, Z);
-    UARTStringPut(UART0_BASE, " x\n\r");
-}

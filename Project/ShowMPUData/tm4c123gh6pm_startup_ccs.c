@@ -56,8 +56,6 @@ extern uint32_t __STACK_TOP;
 //*****************************************************************************
 // To be added by user
 extern void I2CMSimpleIntHandler(void);
-extern void UART0IntHandler(void);
-extern void UART5IntHandler(void);
 
 //*****************************************************************************
 //
