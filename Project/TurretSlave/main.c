@@ -201,6 +201,9 @@ void InitializeButton(void)
     HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
     GPIODirModeSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_DIR_MODE_IN);
     GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_INT_PIN_4);                 // interrupt enable
+    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_4, GPIO_FALLING_EDGE); // only interrupt at falling edge (pressed)
+    GPIOIntRegister(GPIO_PORTF_BASE, ButtonIntHandler);           // dynamic isr registering
 }
 
 void Initialize(void)
@@ -226,39 +229,6 @@ int main(void)
 
     while (1)
     {
-        // Check whether the button is pressed
-        if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4)==0x00)
-        {
-            doingMove = true;
-            // Nodding
-            SetServoPitch(20);
-            delayMS(300);
-            SetServoPitch(80);
-            delayMS(300);
-            SetServoPitch(20);
-            delayMS(300);
-            SetServoPitch(80);
-            delayMS(300);
-            SetServoPitch(20);
-            doingMove = false;
-        }
-
-        // Check whether the button is pressed
-        if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0)==0x00)
-        {
-            doingMove = true;
-            // Shaking
-            SetServoYaw(60);
-            delayMS(300);
-            SetServoYaw(120);
-            delayMS(300);
-            SetServoYaw(60);
-            delayMS(300);
-            SetServoYaw(120);
-            delayMS(300);
-            SetServoYaw(120);
-            doingMove = false;
-        }
     }
 }
 
@@ -314,5 +284,44 @@ void UART5IntHandler(void)
             // Store the character
             uartReceive[uartReceiveCount++] = c;
         }
+    }
+}
+
+void ButtonIntHandler(void)
+{
+    GPIOIntClear(GPIO_PORTF_BASE, GPIO_INT_PIN_4 | GPIO_INT_PIN_5);
+
+    // Check whether the button is pressed
+    if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4)==0x00)
+    {
+        doingMove = true;
+        // Nodding
+        SetServoPitch(20);
+        delayMS(300);
+        SetServoPitch(80);
+        delayMS(300);
+        SetServoPitch(20);
+        delayMS(300);
+        SetServoPitch(80);
+        delayMS(300);
+        SetServoPitch(20);
+        doingMove = false;
+    }
+
+    // Check whether the button is pressed
+    if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0)==0x00)
+    {
+        doingMove = true;
+        // Shaking
+        SetServoYaw(60);
+        delayMS(300);
+        SetServoYaw(120);
+        delayMS(300);
+        SetServoYaw(60);
+        delayMS(300);
+        SetServoYaw(120);
+        delayMS(300);
+        SetServoYaw(120);
+        doingMove = false;
     }
 }
