@@ -23,7 +23,7 @@
 #define SERVO_MAX_PITCH 110
 #define SERVO_MIN_YAW 20
 #define SERVO_INIT_YAW 90
-#define SERVO_MAX_YAW 110
+#define SERVO_MAX_YAW 160
 
 // Store the pwm clock
 volatile uint32_t ui32Load;
@@ -202,15 +202,15 @@ void ButtonIntHandler(void)
     {
         doingMove = true;
         // Nodding
-        SetServoPitch(20);
+        SetServoPitch(50);
         delayMS(300);
         SetServoPitch(80);
         delayMS(300);
-        SetServoPitch(20);
+        SetServoPitch(50);
         delayMS(300);
         SetServoPitch(80);
         delayMS(300);
-        SetServoPitch(20);
+        SetServoPitch(50);
         doingMove = false;
     }
 
