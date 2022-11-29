@@ -110,8 +110,8 @@ void InitializeUART(void)
 /*
  * MPU functions
  */
-#define MIN_PITCH_ANGLE 20
-#define INIT_PITCH_ANGLE 20
+#define MIN_PITCH_ANGLE 50
+#define INIT_PITCH_ANGLE 50
 #define MAX_PITCH_ANGLE 110
 #define MIN_YAW_ANGLE 20
 #define INIT_YAW_ANGLE 90
