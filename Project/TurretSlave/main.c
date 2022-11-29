@@ -57,7 +57,7 @@ void SetServoYaw(int value)
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, value * ui32Load / 1000);
 
-    delayMS(30);       // delay some time
+    delayMS(1);       // delay some time
 }
 
 // Set the up/down rotation of the servo
@@ -69,7 +69,7 @@ void SetServoPitch(int value)
     }
     PWMPulseWidthSet(PWM1_BASE, PWM_OUT_1, value * ui32Load / 1000);
 
-    delayMS(5);       // delay some time
+    delayMS(1);       // delay some time
 }
 
 void InitializePWM()
@@ -203,13 +203,13 @@ void ButtonIntHandler(void)
         doingMove = true;
         // Nodding
         SetServoPitch(50);
-        delayMS(300);
+        delayMS(200);
         SetServoPitch(80);
-        delayMS(300);
+        delayMS(200);
         SetServoPitch(50);
-        delayMS(300);
+        delayMS(200);
         SetServoPitch(80);
-        delayMS(300);
+        delayMS(200);
         SetServoPitch(50);
         doingMove = false;
     }
