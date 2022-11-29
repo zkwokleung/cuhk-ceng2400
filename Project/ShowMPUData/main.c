@@ -189,6 +189,7 @@ void MPU6050Example(int *pitch, int *roll, int *yaw)
     delayMS(5);
 }
 
+int X = 0, Y = 0, Z = 0;
 int main(){
     SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
@@ -198,7 +199,6 @@ int main(){
     MPU6050_Config(0x68, 1, 1);
     MPU6050_Calib_Set(903, 156, 1362, -4, 56, -16);
 
-    int X = 0, Y = 0, Z = 0;
 
     while(1){
         // get raw data from MPU6050
